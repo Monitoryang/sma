@@ -1,0 +1,27 @@
+#ifndef EAPS_MACROS
+#define EAPS_MACROS
+
+#ifndef MAX
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif // MAX
+
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif // MIN
+
+#define FUNCTION_MASK_AI 0b000000001
+#define FUNCTION_MASK_AR 0b000000010
+#define FUNCTION_MASK_DEFOG 0b000000100
+#define FUNCTION_MASK_STABLE 0b000001000
+#define FUNCTION_MASK_VIDEO_RECORD 0b000010000
+#define FUNCTION_MASK_SNAP_SHOT 0b000100000
+#define FUNCTION_MASK_AI_ASSIST_TRACK 0b001000000
+#define FUNCTION_MASK_ENHANCED_AR 0b010000000
+#define FUNCTION_MASK_CLIP_SNAP_SHOT 0b100000000
+#define FUNCTION_MASK_OPENSET_AI 0b1000000000
+
+enum class TaskType {
+	Native, Remote
+};
+
+#endif // !EAPS_MACROS
