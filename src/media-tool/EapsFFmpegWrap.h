@@ -96,6 +96,8 @@ namespace eap {
 				_bit_rate = other._bit_rate;
 				_frame_rate = other._frame_rate;
 				_meta_data_json = other._meta_data_json;
+				_width = other._width;
+				_height = other._height;
 			}
 
 			inline Packet(Packet&& other)
@@ -134,6 +136,8 @@ namespace eap {
 				_bit_rate = other._bit_rate;
 				_frame_rate = other._frame_rate;
 				_meta_data_json = std::move(other._meta_data_json);
+				_width = other._width;
+				_height = other._height;
 			}
 
 			inline ~Packet() 
@@ -393,15 +397,20 @@ namespace eap {
 				_original_pts = original_pts;
 			}
 
-			inline void setVideoParams(int frame_rate, int bit_rate)
+			inline void setVideoParams(int frame_rate, int bit_rate, int width, int height)
 			{
 				_bit_rate = bit_rate;
 				_frame_rate = frame_rate;
+				_width = width;
+				_height = height;
+
 			}
-			inline void getVideoParams(int& frame_rate, int& bit_rate)
+			inline void getVideoParams(int& frame_rate, int& bit_rate, int& width, int& height)
 			{
-				bit_rate = _bit_rate;
 				frame_rate = _frame_rate;
+				bit_rate = _bit_rate;
+				width = _width;
+				height = _height;
 			}
 
 			inline void setArValidPointIndex(const std::queue<int>& ar_valid_point_index)
@@ -489,6 +498,8 @@ namespace eap {
 			std::queue<int> _ar_valid_point_index{};
 			int _frame_rate{};
 			int _bit_rate{};
+			int _width{1920};
+			int _height{1080};
 #if defined(ENABLE_GPU) ||  defined(ENABLE_AI) ||  defined(ENABLE_AR)
 			std::vector<cv::Point> _ar_pixel_points{};
 			std::vector<std::vector<cv::Point>> _ar_pixel_lines{};

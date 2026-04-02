@@ -49,6 +49,7 @@ namespace eap {
 
 #ifdef ENABLE_OPENSET_DETECTION
 			joai::ObjectDetectPtr _openset_ai_object_detector{};
+			std::mutex _openset_ai_engine_mutex{};
 #endif 
 			std::vector<joai::Result> latest_detect_result{};
 
@@ -208,6 +209,13 @@ namespace eap {
 				std::lock_guard<std::mutex> lock(_pushers_mutex);
 				auto push_proc = [this](Packet& packet) {
 					if (_pusher && _pusher->_pusher) {
+						auto& md = packet.getMetaDataBasic();
+						uint32_t detc_size = md.GimbalPayloadInfos_p.ImageProcessingBoardInfo_p.AiInfos_p.AIDataDetcSize;
+						uint32_t ai_status = md.GimbalPayloadInfos_p.ImageProcessingBoardInfo_p.AiInfos_p.AiStatus;
+						// if (ai_status == 1 && detc_size > 0) {
+						// 	eap_information_printf("[OPENSET-STEP2] push_proc -> pushPacket, metaDataValid: %d, AiStatus: %d, DetcSize: %d",
+						// 		(int)packet.metaDataValid(), (int)ai_status, (int)detc_size);
+						// }
 						_pusher->_pusher->pushPacket(packet);
 					}
 				};
@@ -544,7 +552,7 @@ namespace eap {
 				}
 				_reactor_thread_looptimes = 0;
 				_current_network_index = -1;
-				_adapter_num = 0;
+				_adapter_num = 0;	
 				_is_stop_reactor_loop.store(false);
 				_is_demuxer_closed.store(false);
 				_is_demuxer_opened = true;
@@ -970,6 +978,14 @@ namespace eap {
 
 					std::promise<void> openset_ai_promise;
 					auto openset_ai_future = openset_ai_promise.get_future();
+					
+                if (_is_ai_on && !_is_openset_ai_on) {
+                    destroyOpensetAIEngine();
+                }
+                if (_is_openset_ai_on && !_is_ai_on)
+				{
+					destroyAIEngine();
+				}
 #endif
 
 					if (_is_ai_on) {
@@ -1197,46 +1213,71 @@ namespace eap {
 						ai_promise.set_value();
 					}
 
+// ... existing code ...
 #ifdef ENABLE_OPENSET_DETECTION
                 if (_is_openset_ai_on) {
-                    createOpensetAIEngine();
-                    std::weak_ptr<DispatchTaskImpl> this_weak_ptr = weak_from_this();
-                    ThreadPool::defaultPool().start([this, &image, &openset_ai_promise, &openset_detect_ret, this_weak_ptr]()
-                    {
-                        auto this_shared_ptr = this_weak_ptr.lock();
-                        if (!this_shared_ptr) {
-                            openset_ai_promise.set_value();
-                            return;
+                    if (!_engines->_openset_ai_object_detector && (_is_openset_ai_first_create || _is_update_func)) {
+                        if (!_openset_ai_creating.load()) {
+                            _openset_ai_creating.store(true);
+                            _is_openset_ai_first_create = true;
+                            std::weak_ptr<DispatchTaskImpl> this_weak_ptr = weak_from_this();
+                            ThreadPool::defaultPool().start([this, this_weak_ptr]() {
+                                auto this_shared_ptr = this_weak_ptr.lock();
+                                if (!this_shared_ptr) {
+                                    _openset_ai_creating.store(false);
+                                    return;
+                                }
+                                {
+                                    std::lock_guard<std::mutex> lock(_engines->_openset_ai_engine_mutex);
+                                    createOpensetAIEngine();
+                                }
+                                _is_openset_ai_first_create = false;
+                                _openset_ai_creating.store(false);
+                            });
                         }
-
-                        if (!_engines->_openset_ai_object_detector) {
-                            openset_ai_promise.set_value();
-                            return;
-                        }
-						GET_CONFIG(std::string, getString, vl_text, AI::kVLtext);
-						if (prompt.empty() || prompt != vl_text){
-							prompt = vl_text;
-							bool encode_text_flag= _engines->_openset_ai_object_detector->encode_text(prompt);
-						}
-                        auto detect_objects = _engines->_openset_ai_object_detector->detect(image->bgr24_image);
-
-                        image->meta_data.meta_data_basic.GimbalPayloadInfos_p.
-                            ImageProcessingBoardInfo_p.AiInfos_p.AiStatus = 1;
-
-                        openset_detect_ret.clear();
-                        for (auto& object : detect_objects) {
-                            openset_detect_ret.push_back(object);
-                        }
-
                         openset_ai_promise.set_value();
-                    });
+                    } else if (_engines->_openset_ai_object_detector && !_openset_ai_creating.load()) {
+                        std::weak_ptr<DispatchTaskImpl> this_weak_ptr = weak_from_this();
+                        ThreadPool::defaultPool().start([this, &image, &openset_ai_promise, &openset_detect_ret, this_weak_ptr]()
+                        {
+                            auto this_shared_ptr = this_weak_ptr.lock();
+                            if (!this_shared_ptr) {
+                                openset_ai_promise.set_value();
+                                return;
+                            }
+
+                            std::lock_guard<std::mutex> lock(_engines->_openset_ai_engine_mutex);
+                            if (!_engines->_openset_ai_object_detector) {
+                                openset_ai_promise.set_value();
+                                return;
+                            }
+                            GET_CONFIG(std::string, getString, vl_text, AI::kVLtext);
+                            if (prompt.empty() || prompt != vl_text){
+                                prompt = vl_text;
+                                bool encode_text_flag= _engines->_openset_ai_object_detector->encode_text(prompt);
+                            }
+                            auto detect_objects = _engines->_openset_ai_object_detector->detect(image->bgr24_image);
+
+                            image->meta_data.meta_data_basic.GimbalPayloadInfos_p.
+                                ImageProcessingBoardInfo_p.AiInfos_p.AiStatus = 1;
+
+                            openset_detect_ret.clear();
+                            for (auto& object : detect_objects) {
+                                openset_detect_ret.push_back(object);
+                            }
+
+                            openset_ai_promise.set_value();
+                        });
+                    } else {
+                        openset_ai_promise.set_value();
+                    }
                 }
                 else {
-					destroyOpensetAIEngine();
+                    destroyOpensetAIEngine();
                     openset_ai_promise.set_value();
                 }
 #endif // ENABLE_OPENSET_DETECTION
-
+// ... existing code ...
 #endif
 #ifdef ENABLE_AR
 					std::promise<void> ar_promise{};
@@ -1335,6 +1376,16 @@ namespace eap {
                 }
 #endif // ENABLE_OPENSET_DETECTION
 	#endif
+	#ifdef ENABLE_AI
+					// 直接路径：AI检测结果绕过元数据链路直接写入assembly
+					{
+						std::lock_guard<std::mutex> lock(_pushers_mutex);
+						if (_pusher && _pusher->_pusher) {
+							_pusher->_pusher->updateAiDetectInfo(
+								image->meta_data.meta_data_basic.GimbalPayloadInfos_p.ImageProcessingBoardInfo_p.AiInfos_p);
+						}
+					}
+	#endif
 	#ifdef ENABLE_AR
 					ar_future.get();
 	#endif
@@ -1425,11 +1476,17 @@ namespace eap {
 					if(danger_photo_server_url.empty()){
 						eap_warning("danger_photo_server_url.empty");
 					}
+#ifndef ENABLE_DJI_OBJ_RETURN
 					if(!_engines->_ar_engine){
 						eap_warning("_engines->_ar_engine is null");
 					}
+#endif
 
+#ifdef ENABLE_DJI_OBJ_RETURN
+					if (!ai_detect_ret.empty() && !danger_photo_server_url.empty() && duration > frequency * 1000) {
+#else
 					if (!ai_detect_ret.empty() && !danger_photo_server_url.empty() && _engines->_ar_engine && duration > frequency * 1000) {
+#endif
 						_upload_image_time_point = std::chrono::system_clock::now();
 						std::lock_guard<std::mutex> lock(_danger_queue_mutex);
 						if (_danger_images.size() >= 6){// 隐患回传效率跟不上,就抛掉前面的，缓存最新的
@@ -2804,7 +2861,7 @@ namespace eap {
 						eap_error_printf("AI function update failed: %d", (int)status);
 						_update_func_err_desc += std::string("AI; ");
 						_update_func_result = false;
-						_func_mask -= FUNCTION_MASK_AI;//如果是关闭功能，关闭失败的话应该+，但是目前认为不会关闭失败
+						// _func_mask -= FUNCTION_MASK_AI;//如果是关闭功能，关闭失败的话应该+，但是目前认为不会关闭失败
 						_engines->_ai_object_detector.reset();
 					} else {
 						eap_information_printf("AI Engine created and inited success:%d", (int)status);
@@ -2905,11 +2962,11 @@ namespace eap {
 					width, height, class_num, openset_conf_thresh, openset_nms_thresh, OwlVersion, 
 					text_encoder_onnx,vocab,merges,
 					added_tokens,special_tokens_map,tokenizer_config,text_encoder_feature);
-					std::cout << "Openset AI Engine create params: engine_file_full_name: " << opset_engine_file_full_name << ", width: " << width << ", height: " << height << ", class_num: " << class_num << ", conf_thresh: " << openset_conf_thresh << ", nms_thresh: " << openset_nms_thresh << ", OwlVersion: " << OwlVersion << ", text_encoder_feature: " << text_encoder_feature << ", text_encoder_onnx: " << text_encoder_onnx << ", vocab: " << vocab << ", merges: " << merges << ", added_tokens: " << added_tokens << ", special_tokens_map: " << special_tokens_map << ", tokenizer_config: " << tokenizer_config << std::endl;
+					//std::cout << "Openset AI Engine create params: engine_file_full_name: " << opset_engine_file_full_name << ", width: " << width << ", height: " << height << ", class_num: " << class_num << ", conf_thresh: " << openset_conf_thresh << ", nms_thresh: " << openset_nms_thresh << ", OwlVersion: " << OwlVersion << ", text_encoder_feature: " << text_encoder_feature << ", text_encoder_onnx: " << text_encoder_onnx << ", vocab: " << vocab << ", merges: " << merges << ", added_tokens: " << added_tokens << ", special_tokens_map: " << special_tokens_map << ", tokenizer_config: " << tokenizer_config << std::endl;
 					eap_information_printf("Openset AI Engine create params: engine_file_full_name: %s, width: %d, height: %d, class_num: %d, conf_thresh: %f, nms_thresh: %f, OwlVersion: %s, text_encoder_feature: %s, text_encoder_onnx: %s, vocab: %s, merges: %s, added_tokens: %s, special_tokens_map: %s, tokenizer_config: %s",
-						opset_engine_file_full_name.c_str(), width, height, class_num, openset_conf_thresh, openset_nms_thresh,
-						OwlVersion.c_str(), text_encoder_feature.c_str(), text_encoder_onnx.c_str(), vocab.c_str(), merges.c_str(),
-						added_tokens.c_str(), special_tokens_map.c_str(), tokenizer_config.c_str());
+						opset_engine_file_full_name, width, height, class_num, openset_conf_thresh, openset_nms_thresh,
+						OwlVersion, text_encoder_feature, text_encoder_onnx, vocab, merges,
+						added_tokens, special_tokens_map, tokenizer_config);
 					if (status != joai::ENGINE_SUCCESS) {
 						std::string desc = "Openset AI engine init failed, status code: " + std::to_string(status);						
 						eap_error(desc);
@@ -2919,7 +2976,7 @@ namespace eap {
 						eap_error_printf("Openset AI function update failed: %d", (int)status);
 						_update_func_err_desc += std::string("Openset AI; ");
 						_update_func_result = false;
-						_func_mask -= FUNCTION_MASK_OPENSET_AI;//如果是关闭功能，关闭失败的话应该+，但是目前认为不会关闭失败
+						// _func_mask -= FUNCTION_MASK_OPENSET_AI;//如果是关闭功能，关闭失败的话应该+，但是目前认为不会关闭失败
 						_engines->_openset_ai_object_detector.reset();
 					} else {
 						eap_information_printf("Openset AI Engine created and inited success:%d", (int)status);
@@ -3363,6 +3420,15 @@ namespace eap {
 			//// 保存图片到results文件夹
 	/*		std::string detectfilename = "H:/JoEAPSma/release/windows/Debug/Debug/results/detect_" + std::to_string(std::rand()) + ".jpg";
 			cv::imwrite(detectfilename, image->bgr24_image);*/
+	
+			// 直接路径：AI检测结果绕过元数据链路直接写入assembly
+			{
+				std::lock_guard<std::mutex> lock(_pushers_mutex);
+				if (_pusher && _pusher->_pusher) {
+					_pusher->_pusher->updateAiDetectInfo(
+						image->meta_data.meta_data_basic.GimbalPayloadInfos_p.ImageProcessingBoardInfo_p.AiInfos_p);
+				}
+			}
 		}
 #endif
 	
@@ -4171,19 +4237,20 @@ namespace eap {
 		}
 
 #ifdef ENABLE_OPENSET_DETECTION
-        void DispatchTaskImpl::destroyOpensetAIEngine()
-        {
-            if (_engines) {
-                std::lock_guard<std::mutex> ai_lock(_engines->_ai_engine_mutex);
-                if (_engines->_openset_ai_object_detector) {
-                    _engines->_openset_ai_object_detector.reset();
-                }
-                if ((_func_mask & FUNCTION_MASK_OPENSET_AI) == FUNCTION_MASK_OPENSET_AI) {
-                    _func_mask -= FUNCTION_MASK_OPENSET_AI;
-                    updateTaskFuncmask();
-                }
-            }
-        }
+		void DispatchTaskImpl::destroyOpensetAIEngine()
+				{
+					if (_engines) {
+						std::lock_guard<std::mutex> ai_lock(_engines->_openset_ai_engine_mutex);
+						if (_engines->_openset_ai_object_detector) {
+							_engines->_openset_ai_object_detector.reset();
+						}
+						prompt.clear();
+						if ((_func_mask & FUNCTION_MASK_OPENSET_AI) == FUNCTION_MASK_OPENSET_AI) {
+							_func_mask -= FUNCTION_MASK_OPENSET_AI;
+							updateTaskFuncmask();
+						}
+					}
+				}
 #endif
 
 
@@ -5398,6 +5465,129 @@ namespace eap {
 					std::vector<cv::Rect> cv_rect{};
 					std::vector<jo::WarningInfo> warning_info{};
 
+#ifdef ENABLE_DJI_OBJ_RETURN
+					// DJI OBJ RETURN 模式：根据是否有元数据选择地理坐标计算方式
+					{
+						if (base64_encoded.empty()) {
+							eap_warning("danger base64_encoded is empty");
+						}
+
+						// 有元数据：用 AR 引擎计算各检测框的精确地理坐标
+						if (image->meta_data.meta_data_valid && _engines->_ar_engine) {
+							for (const auto& ret : ai_detect_ret) {
+								cv_rect.push_back(ret.Bounding_box);
+							}
+							jo::JoARMetaDataBasic ar_meta_data{};
+							JoFmvMetaDataBasic meta_temp = image->meta_data.meta_data_basic;
+							ar_meta_data.CarrierVehiclePosInfo_p.CarrierVehicleHeadingAngle = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleHeadingAngle;
+							ar_meta_data.CarrierVehiclePosInfo_p.CarrierVehiclePitchAngle = meta_temp.CarrierVehiclePosInfo_p.CarrierVehiclePitchAngle;
+							ar_meta_data.CarrierVehiclePosInfo_p.CarrierVehicleRollAngle = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleRollAngle;
+							ar_meta_data.CarrierVehiclePosInfo_p.CarrierVehicleLon = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleLon;
+							ar_meta_data.CarrierVehiclePosInfo_p.CarrierVehicleLat = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleLat;
+							ar_meta_data.CarrierVehiclePosInfo_p.CarrierVehicleHMSL = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleHMSL;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.FocalDistance = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.FocalDistance;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.FramePan = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.FramePan;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.FrameRoll = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.FrameRoll;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.FrameTilt = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.FrameTilt;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.GimbalPan = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.GimbalPan;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.GimbalRoll = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.GimbalRoll;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.GimbalTilt = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.GimbalTilt;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.TGTHMSL = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.TGTHMSL;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.TGTLat = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.TGTLat;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.TGTLon = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.TGTLon;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.VisualViewAngleHorizontal = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.VisualViewAngleHorizontal;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.VisualViewAngleVertical = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.VisualViewAngleVertical;
+							ar_meta_data.GimbalPayloadInfos_p.GimbalPosInfo_p.SlantR = meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.SlantR;
+							int width = image->width;
+							int height = image->height;
+							warning_info = _engines->_ar_engine->getWarningInfo(cv_rect, width, height, ar_meta_data);
+						}
+
+						Poco::JSON::Array json_warning_info_array;
+						for (std::size_t i = 0; i < ai_detect_ret.size(); ++i) {
+							Poco::JSON::Object elementJs;
+							Poco::JSON::Array pixelPositionArr;
+							auto object = ai_detect_ret[i];
+							elementJs.set("identifyType", object.cls);
+							elementJs.set("reliability", object.confidence);
+							pixelPositionArr.add(object.Bounding_box.x);
+							pixelPositionArr.add(object.Bounding_box.y);
+							pixelPositionArr.add(object.Bounding_box.width);
+							pixelPositionArr.add(object.Bounding_box.height);
+							elementJs.set("pixelPosition", pixelPositionArr);
+							// wargetPosition：有元数据且 AR 引擎有效时用 AR 引擎结果，否则用载体位置作为 fallback
+							Poco::JSON::Array wargetPositionArr;
+							if (image->meta_data.meta_data_valid
+								&& _engines->_ar_engine
+								&& i < warning_info.size()
+								&& !isnanf(warning_info[i].target_position.longitude)
+								&& !isnanf(warning_info[i].target_position.latitude)
+								&& warning_info[i].target_position.longitude != 0
+								&& warning_info[i].target_position.latitude != 0) {
+								wargetPositionArr.add(warning_info[i].target_position.longitude);
+								wargetPositionArr.add(warning_info[i].target_position.latitude);
+								wargetPositionArr.add(warning_info[i].target_position.altitude);
+								eap_information_printf("[DJI-GEO] AR engine wargetPosition: lon=%.8f lat=%.8f alt=%.2f",
+									warning_info[i].target_position.longitude,
+									warning_info[i].target_position.latitude,
+									warning_info[i].target_position.altitude);
+							} else {
+								// 无元数据：使用载体位置作为 fallback
+								JoFmvMetaDataBasic meta_temp = image->meta_data.meta_data_basic;
+								double fallback_lon = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleLon * 1e-7;
+								double fallback_lat = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleLat * 1e-7;
+								double fallback_alt = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleHMSL * 1e-2;
+								wargetPositionArr.add(fallback_lon);
+								wargetPositionArr.add(fallback_lat);
+								wargetPositionArr.add(fallback_alt);
+								eap_warning_printf("[DJI-GEO] no valid AR geo, fallback to vehicle pos: lon=%.8f lat=%.8f alt=%.2f",
+									fallback_lon, fallback_lat, fallback_alt);
+							}
+							elementJs.set("wargetPosition", wargetPositionArr);
+							json_warning_info_array.add(elementJs);
+						}
+
+						std::size_t index = _push_url.rfind("/");
+						std::size_t second_index = _push_url.rfind("/", index - 1);
+						std::string pilot_sn = _push_url.substr(second_index + 1, index - second_index - 1);
+
+						Poco::JSON::Object json;
+						json.set("file", base64_encoded);
+						json.set("autopilotSn", pilot_sn);
+						json.set("warningInfo", json_warning_info_array);
+						{
+							std::ostringstream warning_oss;
+							json_warning_info_array.stringify(warning_oss);
+							eap_information_printf("[addDangerPhoto] POST %s",
+								(danger_photo_server_url + "/api/order/v1/aiEventFile/addDangerPhoto").c_str());
+							eap_information_printf("[addDangerPhoto] autopilotSn=%s, file_size=%zu, warningInfo=%s",
+								pilot_sn.c_str(), base64_encoded.size(), warning_oss.str().c_str());
+						}
+						http_client->doHttpRequest(danger_photo_server_url + "/api/order/v1/aiEventFile/addDangerPhoto", jsonToString(json), [&](Poco::Net::HTTPResponse::HTTPStatus status, std::istream& response) {
+							if (Poco::Net::HTTPResponse::HTTPStatus::HTTP_OK == status) {
+								try {
+									Poco::JSON::Parser parser;
+									auto dval = parser.parse(response);
+									auto obj = dval.extract<Poco::JSON::Object::Ptr>();
+									int code = obj && obj->has("code") ? obj->getValue<int>("code") : 0;
+									if (code != 200) {
+										std::string msg = obj->getValue<std::string>("msg");
+										eap_error_printf("addDangerPhoto post failed, http status=%d, return code=%d, msg=%s", (int)status, code, msg);
+									}
+									else {
+										eap_information("addDangerPhoto post succeed");
+									}
+								}
+								catch (...) {
+									eap_warning("addDangerPhoto post failed");
+								}
+							}
+							else {
+								eap_warning("addDangerPhoto post failed");
+							}
+						});
+					}
+#else
 					if (image->meta_data.meta_data_valid) {
 						for (const auto& ret : ai_detect_ret) {
 							cv_rect.push_back(ret.Bounding_box);
@@ -5498,7 +5688,7 @@ namespace eap {
 						json.set("visual_horitontal", meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.VisualViewAngleHorizontal * 1e-4 * 180.0 / M_PI);
 						json.set("tgt_hmsl", meta_temp.GimbalPayloadInfos_p.GimbalPosInfo_p.TGTHMSL);
 
-						http_client->doHttpRequest(danger_photo_server_url + "/dataManagement/v1/fileOperate/addDangerPhoto", jsonToString(json), [&](Poco::Net::HTTPResponse::HTTPStatus status, std::istream& response) {
+						http_client->doHttpRequest(danger_photo_server_url + "/api/order/v1/aiEventFile/addDangerPhoto", jsonToString(json), [&](Poco::Net::HTTPResponse::HTTPStatus status, std::istream& response) {
 							if (Poco::Net::HTTPResponse::HTTPStatus::HTTP_OK == status) {
 								try {
 									Poco::JSON::Parser parser;
@@ -5523,6 +5713,8 @@ namespace eap {
 							}
 						});
 					}
+				}
+#endif // ENABLE_DJI_OBJ_RETURN
 				}
 			});
 #endif //  ENABLE_AI

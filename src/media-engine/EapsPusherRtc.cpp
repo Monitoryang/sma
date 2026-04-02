@@ -195,21 +195,26 @@ namespace eap {
 							}*/
 							writePacket(pkt);
 							if (_is_datachannel_opened) {
-								if (pkt.metaDataValid() && _meta_data_assembly_geojsonx) {
-									_meta_data_assembly_geojsonx->updateMetaDataStructure(pkt.getMetaDataBasic());
-									_meta_data_assembly_geojsonx->updateArData(pkt.getArValidPointIndex(), pkt.getArVectorFile());
+								if (_meta_data_assembly_geojsonx) {
+									if (pkt.metaDataValid()) {
+										_meta_data_assembly_geojsonx->updateMetaDataStructure(pkt.getMetaDataBasic());
+										_meta_data_assembly_geojsonx->updateArData(pkt.getArValidPointIndex(), pkt.getArVectorFile());
 #if defined(ENABLE_GPU) ||  defined(ENABLE_AI) ||  defined(ENABLE_AR)
-									_meta_data_assembly_geojsonx->updateArData(pkt.getArPixelPoints(), pkt.getArPixelLines(), pkt.getArInfos());
-									_meta_data_assembly_geojsonx->updateArData(pkt.getArPixelWarningL1s(), pkt.getArPixelWarningL2s());
+										_meta_data_assembly_geojsonx->updateArData(pkt.getArPixelPoints(), pkt.getArPixelLines(), pkt.getArInfos());
+										_meta_data_assembly_geojsonx->updateArData(pkt.getArPixelWarningL1s(), pkt.getArPixelWarningL2s());
 #endif
-									_meta_data_assembly_geojsonx->updateAiHeapmapData(pkt.getAiHeatmapInfos());
-									_meta_data_assembly_geojsonx->updateFrameCurrentTime(pkt.getCurrentTime());
-									int frame_rate{}, bit_rate{};
-									pkt.getVideoParams(frame_rate, bit_rate);
-									_meta_data_assembly_geojsonx->updateVideoParams(_video_duration, bit_rate, frame_rate);
+										_meta_data_assembly_geojsonx->updateAiHeapmapData(pkt.getAiHeatmapInfos());
+										_meta_data_assembly_geojsonx->updateFrameCurrentTime(pkt.getCurrentTime());
+										int frame_rate{}, bit_rate{}, video_width{}, video_height{};
+										pkt.getVideoParams(frame_rate, bit_rate, video_width, video_height);
+										_meta_data_assembly_geojsonx->updateVideoParams2(_video_duration, bit_rate, frame_rate, video_width, video_height);
+									}
+									// 无论元数据是否有效，都尝试获取assembly字符串（直接路径AI数据不依赖元数据）
 									meta_data_json_string = _meta_data_assembly_geojsonx->getAssemblyString();
 								}
 								if (!meta_data_json_string.empty() && _rtc_sender){
+									// eap_information_printf("[DEBUG-DATACHANNEL] sending json length: %d, content: %.500s", 
+                                    //     (int)meta_data_json_string.length(), meta_data_json_string.c_str());
 									jo_rtc_sender_send_string(_rtc_sender, meta_data_json_string.c_str());
 								}
 							}
@@ -283,6 +288,29 @@ namespace eap {
 			std::lock_guard<std::mutex> lock(_packets_mutex);
 			_packets_cv.notify_all();
         }
+
+		void PusherRtc::updateAiDetectInfo(const AiInfos& ai_infos)
+		{
+			if (_meta_data_assembly_geojsonx) {
+				_meta_data_assembly_geojsonx->updateAiDetectInfo(ai_infos);
+			}
+		}
+
+		void PusherRtc::updateVideoSize(int width, int height)
+		{
+			if (_meta_data_assembly_geojsonx) {
+				_meta_data_assembly_geojsonx->updateVideoSize(width, height);
+			}
+		}
+
+		std::vector<std::tuple<double, double, double>> PusherRtc::calcAiGeoLocations(
+			const std::vector<joai::Result>& ai_detect_ret, int img_w, int img_h)
+		{
+			if (_meta_data_assembly_geojsonx) {
+				return _meta_data_assembly_geojsonx->calcAiGeoLocations(ai_detect_ret, img_w, img_h);
+			}
+			return {};
+		}
 
         void PusherRtc::pushPacket(Packet pkt)
 		{

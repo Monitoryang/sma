@@ -202,6 +202,32 @@ namespace eap {
 			}
 			return json_string;
 		}
+
+		std::string sanitizeJsonNaN(const std::string& json)
+		{
+			std::string result = json;
+			// 替换 JSON 中的 nan/inf/-inf 为 0（处理各种上下文：逗号、花括号、方括号结尾）
+			std::vector<std::pair<std::string, std::string>> replacements = {
+				{":nan,", ":0,"},
+				{":nan}", ":0}"},
+				{":nan]", ":0]"},
+				{":inf,", ":0,"},
+				{":inf}", ":0}"},
+				{":inf]", ":0]"},
+				{":-inf,", ":0,"},
+				{":-inf}", ":0}"},
+				{":-inf]", ":0]"}
+			};
+			for (const auto& [from, to] : replacements) {
+				size_t pos = 0;
+				while ((pos = result.find(from, pos)) != std::string::npos) {
+					result.replace(pos, from.length(), to);
+					pos += to.length();
+				}
+			}
+			return result;
+		}
+
         bool moveAndRenameFile(std::string src, std::string dst)
         {
             try {

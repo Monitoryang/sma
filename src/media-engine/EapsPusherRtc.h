@@ -33,6 +33,10 @@ namespace eap {
 			virtual void pause(int paused) override;
 
 			virtual void pushPacket(Packet pkt) override;
+			virtual void updateAiDetectInfo(const AiInfos& ai_infos) override;
+			virtual void updateVideoSize(int width, int height) override;
+			virtual std::vector<std::tuple<double, double, double>> calcAiGeoLocations(
+				const std::vector<joai::Result>& ai_detect_ret, int img_w, int img_h) override;
 			void setMarkDataCallback(MarkDataCallback mark_data_callback);
 			void updateVideoParams(int64_t video_duration);
 			int64_t getPacketsFrontPts();

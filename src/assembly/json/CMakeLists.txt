@@ -14,6 +14,7 @@ endif(ENABLE_AR)
 if(ENABLE_AR)
 #gdal##################
 find_package(Gdal REQUIRED)
+find_package(Eigen3 REQUIRED)
 if(GDAL_FOUND)
   message(STATUS "Found Gdal: ${GDAL_INCLUDE_DIRS}")
   message(STATUS "Found Gdal library: ${GDAL_LIBRARIES}")
@@ -28,7 +29,7 @@ target_compile_options(eap-sma-assemblyjson
   PRIVATE ${COMPILE_OPTIONS_DEFAULT})
 target_link_libraries(eap-sma-assemblyjson
   PUBLIC ${LOCATION_LINK_LIBRARIES}
-          ${GDAL_LIBRARIES})
+          ${GDAL_LIBRARIES} Eigen3::Eigen)
 if(ENABLE_AR)
 target_include_directories(eap-sma-assemblyjson
         PRIVATE

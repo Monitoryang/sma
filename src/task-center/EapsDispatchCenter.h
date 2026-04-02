@@ -42,6 +42,7 @@ namespace eap {
 			bool removeTask(std::string id);
 
 			void updateFuncMask(std::string id, int function_mask, std::string ar_camera_config = std::string(), std::string ar_vector_file = std::string(), int time_count=0);
+			void updateAllFuncMask(int function_mask, std::string ar_camera_config = std::string(), std::string ar_vector_file = std::string(), int time_count=0);
 			void updateTaskInfo(std::string id, int function_mask, std::string ar_camera_config = std::string(), std::string ar_vector_file = std::string());
 			void receivePilotData(std::string id, std::string param_str);
 			void receivePayloadData(std::string id, std::string param_str);

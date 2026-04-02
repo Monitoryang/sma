@@ -780,6 +780,90 @@ namespace eap {
 				return jsonToString(val);
 			});
 
+			s_rpc_server->register_handler("smaStopProcess_dji", [](rest_rpc::rpc_service::rpc_conn conn, const std::string& paramsStr)
+			{
+				Poco::JSON::Object val;
+				Poco::JSON::Object params = *(stringToJson(paramsStr));
+				CHECK_SMA_SECRET();
+				CHECK_SMA_ARGS("id");
+
+				std::string id = params.get("id").toString();
+				eap_information_printf("smaStopProcess_dji remove task, id: %s", id);
+
+				try {
+					auto task = DispatchCenter::Instance()->findTaskId(id);
+					if (task) {
+						auto ret = DispatchCenter::Instance()->removeTask(id);
+						if (ret) {
+							eap_information_printf("smaStopProcess_dji remove task success, id: %s", id);
+							NoticeCenter::Instance()->getCenter().postNotification(new RemoveTaskNotice(true, id));
+						}
+						else {
+							eap_debug_printf("smaStopProcess_dji remove task failed, id: %s", id);
+							makeJsonDefault(ApiErr::Exception, "Task remove failed", val);
+							NoticeCenter::Instance()->getCenter().postNotification(new RemoveTaskNotice(false, id));
+							return jsonToString(val);
+						}
+					}
+					else {
+						eap_debug_printf("smaStopProcess_dji remove task failed, id: %s", id);
+						makeJsonDefault(ApiErr::InvalidArgs, "Task not existed!", val);
+						NoticeCenter::Instance()->getCenter().postNotification(new RemoveTaskNotice(false, id));
+						return jsonToString(val);
+					}
+					
+				} catch (const std::exception& e) {
+					eap_information(e.what());
+					makeJsonDefault(ApiErr::Exception, e.what(), val);
+					NoticeCenter::Instance()->getCenter().postNotification(new RemoveTaskNotice(false, id));
+					return jsonToString(val);
+				}
+				makeJsonDefault(ApiErr::Success, "success", val);
+				return jsonToString(val);
+			});
+
+			s_rpc_server->register_handler("smaStopAllProcess_dji", [](rest_rpc::rpc_service::rpc_conn conn, const std::string& paramsStr)
+			{
+				Poco::JSON::Object val;
+				Poco::JSON::Object params = *(stringToJson(paramsStr));
+				CHECK_SMA_SECRET();
+
+				eap_information("smaStopAllProcess_dji remove all tasks");
+
+				try {
+					// 收集所有任务ID
+					std::vector<std::string> task_ids;
+					DispatchCenter::Instance()->for_each_task([&task_ids](const DispatchTaskPtr& task) {
+						if (task) {
+							task_ids.push_back(task->getId());
+						}
+					});
+
+					int success_count = 0;
+					int fail_count = 0;
+					for (const auto& id : task_ids) {
+						auto ret = DispatchCenter::Instance()->removeTask(id);
+						if (ret) {
+							eap_information_printf("smaStopAllProcess_dji remove task success, id: %s", id);
+							NoticeCenter::Instance()->getCenter().postNotification(new RemoveTaskNotice(true, id));
+							success_count++;
+						}
+						else {
+							eap_debug_printf("smaStopAllProcess_dji remove task failed, id: %s", id);
+							NoticeCenter::Instance()->getCenter().postNotification(new RemoveTaskNotice(false, id));
+							fail_count++;
+						}
+					}
+					eap_information_printf("smaStopAllProcess_dji done, success: %d, fail: %d", success_count, fail_count);
+				} catch (const std::exception& e) {
+					eap_information(e.what());
+					makeJsonDefault(ApiErr::Exception, e.what(), val);
+					return jsonToString(val);
+				}
+				makeJsonDefault(ApiErr::Success, "success", val);
+				return jsonToString(val);
+			});
+
 			s_rpc_server->register_handler("smaUpdateFuncMask", [](rest_rpc::rpc_service::rpc_conn conn, const std::string& paramsStr
 				, std::map<std::string, std::string> ar_file)
 			{
@@ -854,6 +938,290 @@ namespace eap {
 					return jsonToString(val);
 				}
 				makeJsonDefault(ApiErr::Success, "success", val, id_str);
+				return jsonToString(val);
+			});
+
+			s_rpc_server->register_handler("smaUpdateAllFuncMask", [](rest_rpc::rpc_service::rpc_conn conn, const std::string& paramsStr
+				, std::map<std::string, std::string> ar_file)
+			{
+				Poco::JSON::Object params = *(stringToJson(paramsStr));
+				Poco::JSON::Object val;
+
+				CHECK_SMA_SECRET();
+				CHECK_SMA_ARGS("func_mask");
+
+				auto func_mask_str = params.has("func_mask")? params.get("func_mask").toString(): "0";
+				auto time_count_str = params.has("time_count")? params.get("time_count").toString(): "0";
+
+				if (func_mask_str.empty()) {
+					makeJsonDefault(ApiErr::InvalidArgs, "args func_mask is empty", val);
+					eap_error("updateAllFuncMask: args func_mask is empty");
+					return jsonToString(val);
+				}
+				
+				int func_mask = std::atoi(func_mask_str.c_str());
+				if (func_mask < 0 || func_mask > 5000) {
+					makeJsonDefault(ApiErr::InvalidArgs, "args func_mask_str invalid", val);
+					eap_error_printf("updateAllFuncMask: args func_mask_str invalid, funcmask: %d", func_mask);
+					return jsonToString(val);
+				}
+				int time_count = std::atoi(time_count_str.c_str());
+				eap_information_printf("updateAllFuncMask, funcmask: %d, time_count: %d", func_mask, time_count);
+				try {
+					std::string ar_vector_file_path{};
+					std::string ar_camera_file_path{};
+					if(ar_file.size() > 0){
+						// 对于全量更新不处理按id区分的AR文件写入
+						for(auto& [key, value] : ar_file){
+							if(key.find("vector") != std::string::npos || key.find("kml") != std::string::npos || key.find("kmz") != std::string::npos){
+								ar_vector_file_path = value;
+							} else if(key.find("camera") != std::string::npos || key.find("config") != std::string::npos){
+								ar_camera_file_path = value;
+							}
+						}
+					}
+					if ((func_mask & FUNCTION_MASK_AR) == FUNCTION_MASK_AR||
+			 (func_mask & FUNCTION_MASK_ENHANCED_AR) == FUNCTION_MASK_ENHANCED_AR) {
+						if (ar_vector_file_path.empty() || ar_camera_file_path.empty()) {
+							throw std::invalid_argument("open ar func,but no camera.config or vector file");
+						}
+					}
+					DispatchCenter::Instance()->updateAllFuncMask(func_mask, ar_camera_file_path, ar_vector_file_path, time_count);
+				}
+				catch (const std::exception& e)
+				{
+					eap_error(e.what());
+					makeJsonDefault(ApiErr::Exception, e.what(), val);
+					return jsonToString(val);
+				}
+				makeJsonDefault(ApiErr::Success, "success", val);
+				return jsonToString(val);
+			});
+
+			s_rpc_server->register_handler("smaStartProcess_dji", [](rest_rpc::rpc_service::rpc_conn conn, const std::string& paramsStr, 
+				std::map<std::string, std::string> ar_file)
+			{
+				Poco::JSON::Object val;
+				Poco::JSON::Object params = *(stringToJson(paramsStr));
+				CHECK_SMA_SECRET();
+				CHECK_SMA_ARGS("pull_url", "push_url", "func_mask");
+
+				bool auth_result{};
+				std::string auth_desc{};
+				std::function<void(bool result, std::string desc)> invoker = [&auth_result, &auth_desc](bool result, std::string desc) {
+					auth_result = result;
+					auth_desc = desc;
+				};
+				NoticeCenter::Instance()->getCenter().postNotification(new AddTaskNotice(paramsStr, invoker));
+
+				if (!auth_result) {
+					makeJsonDefault(ApiErr::AuthFailed, auth_desc, val);
+					return jsonToString(val);
+				}
+
+				auto pull_url_str = params.get("pull_url").toString();
+				auto push_url_str = params.get("push_url").toString();
+				auto func_mask_str = params.get("func_mask").toString();
+
+				if (pull_url_str.empty() || push_url_str.empty()) {
+					makeJsonDefault(ApiErr::InvalidArgs, "args pull or push url mull", val);
+					eap_error("smaStartProcess_dji: args pull or push url mull");
+					return jsonToString(val);
+				}
+
+				std::string play_back_address{};
+				bool has_play_back_address = params.has("play_back_address");
+				if (has_play_back_address) {
+					play_back_address = params.get("play_back_address").toString();
+				}
+
+				int func_mask{0};
+				if (func_mask_str.empty()) {					
+					eap_warning("smaStartProcess_dji: args func_mask is empty");					
+				} else {
+					func_mask = std::atoi(func_mask_str.c_str());
+				}
+				if (func_mask < 0 || func_mask > 5000) {
+					makeJsonDefault(ApiErr::InvalidArgs, "args func_mask invalid", val);
+					eap_error("smaStartProcess_dji: args func_mask invalid");
+					return jsonToString(val);
+				}
+
+				auto guid = generate_guid(16);
+				eap_information_printf("smaStartProcess_dji add task, in url: %s, out url: %s, guid: %s, func_mask: %s"
+					, pull_url_str, push_url_str, guid, func_mask_str);
+				
+				try {
+					std::string ar_vector_file_path{};
+					std::string ar_camera_file_path{};
+					if(ar_file.size() > 0 ){
+						writeArCameraFile(ar_vector_file_path, ar_camera_file_path, guid, ar_file);
+					}
+					if ((func_mask & FUNCTION_MASK_AR) == FUNCTION_MASK_AR||
+			 (func_mask & FUNCTION_MASK_ENHANCED_AR) == FUNCTION_MASK_ENHANCED_AR) {
+						if (ar_vector_file_path.empty() || ar_camera_file_path.empty()) {
+							throw std::invalid_argument("open ar func,but no camera.config or vector file");
+						}
+					}
+					DispatchTask::InitParameter init_paramter_task;
+					init_paramter_task.id = guid;
+					init_paramter_task.ar_vector_file = ar_vector_file_path;
+					init_paramter_task.ar_camera_config = ar_camera_file_path;					
+					init_paramter_task.func_mask = func_mask;
+					init_paramter_task.pull_url = pull_url_str;
+					init_paramter_task.push_url = push_url_str;
+					
+					std::string record_file_prefix{};
+					try {
+						GET_CONFIG(std::string, getString, my_record_file_prefix, Media::kRecordFilePrefix);
+						record_file_prefix = my_record_file_prefix;
+					}
+					catch (const std::exception& e) {
+						eap_error_printf("get config throw exception: %s", e.what());
+					}
+
+					init_paramter_task.record_file_prefix = record_file_prefix;
+					init_paramter_task.record_time_str = get_current_time_string_second_compact();
+					DispatchCenter::Instance()->addTask(init_paramter_task);
+				} catch (const std::exception& e) {
+					eap_information(e.what());
+					makeJsonDefault(ApiErr::Exception, e.what(), val);
+					return jsonToString(val);
+				}
+				makeJsonDefault(ApiErr::Success, "success", val, guid);
+				return jsonToString(val);
+			});
+
+			s_rpc_server->register_handler("smaUpdateFuncMask_dji", [](rest_rpc::rpc_service::rpc_conn conn, const std::string& paramsStr
+				, std::map<std::string, std::string> ar_file)
+			{
+				Poco::JSON::Object params = *(stringToJson(paramsStr));
+				Poco::JSON::Object val;
+
+				CHECK_SMA_SECRET();
+#ifdef ENABLE_AIRBORNE
+				if (!params.has("id")){
+					std::string visual_guid = eap::configInstance().has(Media::kVisualGuid) ? eap::configInstance().getString(Media::kVisualGuid) : "";
+					params.set("id", visual_guid);
+					eap_information_printf("start smaUpdateFuncMask_dji, id: %s", visual_guid);
+				}
+#else
+				CHECK_SMA_ARGS("id", "func_mask");
+#endif
+
+				auto id_str = params.get("id").toString();
+				auto func_mask_str = params.has("func_mask")? params.get("func_mask").toString(): 0;
+				auto time_count_str = params.has("time_count")? params.get("time_count").toString(): "0";
+				if (id_str.empty()) {
+					makeJsonDefault(ApiErr::InvalidArgs, "args id is empty", val);
+					eap_error("smaUpdateFuncMask_dji: args id is empty");
+					return jsonToString(val);
+				}
+
+				if (func_mask_str.empty()) {
+					makeJsonDefault(ApiErr::InvalidArgs, "args func_mask is empty", val);
+					eap_error("smaUpdateFuncMask_dji: args func_mask is empty");
+					return jsonToString(val);
+				}
+				
+				int func_mask = std::atoi(func_mask_str.c_str());
+				if (func_mask < 0 || func_mask > 5000) {
+					makeJsonDefault(ApiErr::InvalidArgs, "args func_mask_str invalid", val);
+					eap_error_printf("smaUpdateFuncMask_dji: args func_mask_str invalid, funcmask: %d", func_mask);
+					return jsonToString(val);
+				}
+				int time_count = std::atoi(time_count_str.c_str());
+				eap_information_printf("smaUpdateFuncMask_dji, id: %s, funcmask: %d, time_count: %d", id_str, func_mask, time_count);
+				try {
+					std::string ar_vector_file_path{};
+					std::string ar_camera_file_path{};
+					std::string ar_kml_name = ar_file_path + id_str + "/" + id_str + ".kml";
+					std::string ar_kmz_name = ar_file_path + id_str + "/" + id_str + ".kmz";
+					std::string ar_camera_name = ar_file_path + id_str + "/" + id_str + ".config";
+					if(ar_file.size() > 0 ){
+						writeArCameraFile(ar_vector_file_path, ar_camera_file_path, id_str, ar_file);
+					}
+					
+					if (ar_vector_file_path.empty() && fileExist(ar_kml_name)) {
+						ar_vector_file_path = ar_kml_name;
+					} 
+					if (ar_camera_file_path.empty() && fileExist(ar_camera_name)) {
+						ar_camera_file_path = ar_camera_name;
+					} 
+					if (ar_vector_file_path.empty() && fileExist(ar_kmz_name)) {
+						ar_vector_file_path = ar_kmz_name;
+					}
+					if ((func_mask & FUNCTION_MASK_AR) == FUNCTION_MASK_AR||
+			 (func_mask & FUNCTION_MASK_ENHANCED_AR) == FUNCTION_MASK_ENHANCED_AR) {
+						if (ar_vector_file_path.empty() || ar_camera_file_path.empty()) {
+							throw std::invalid_argument("open ar func,but no camera.config or vector file");
+						}
+					}
+					DispatchCenter::Instance()->updateFuncMask(id_str, func_mask, ar_camera_file_path, ar_vector_file_path, time_count);					
+				}
+				catch (const std::exception& e)
+				{
+					eap_error(e.what());
+					makeJsonDefault(ApiErr::Exception, e.what(), val, id_str);
+					return jsonToString(val);
+				}
+				makeJsonDefault(ApiErr::Success, "success", val, id_str);
+				return jsonToString(val);
+			});
+
+			s_rpc_server->register_handler("smaUpdateAllFuncMask_dji", [](rest_rpc::rpc_service::rpc_conn conn, const std::string& paramsStr
+				, std::map<std::string, std::string> ar_file)
+			{
+				Poco::JSON::Object params = *(stringToJson(paramsStr));
+				Poco::JSON::Object val;
+
+				CHECK_SMA_SECRET();
+				CHECK_SMA_ARGS("func_mask");
+
+				auto func_mask_str = params.has("func_mask")? params.get("func_mask").toString(): "0";
+				auto time_count_str = params.has("time_count")? params.get("time_count").toString(): "0";
+
+				if (func_mask_str.empty()) {
+					makeJsonDefault(ApiErr::InvalidArgs, "args func_mask is empty", val);
+					eap_error("smaUpdateAllFuncMask_dji: args func_mask is empty");
+					return jsonToString(val);
+				}
+				
+				int func_mask = std::atoi(func_mask_str.c_str());
+				if (func_mask < 0 || func_mask > 5000) {
+					makeJsonDefault(ApiErr::InvalidArgs, "args func_mask_str invalid", val);
+					eap_error_printf("smaUpdateAllFuncMask_dji: args func_mask_str invalid, funcmask: %d", func_mask);
+					return jsonToString(val);
+				}
+				int time_count = std::atoi(time_count_str.c_str());
+				eap_information_printf("smaUpdateAllFuncMask_dji, funcmask: %d, time_count: %d", func_mask, time_count);
+				try {
+					std::string ar_vector_file_path{};
+					std::string ar_camera_file_path{};
+					if(ar_file.size() > 0){
+						for(auto& [key, value] : ar_file){
+							if(key.find("vector") != std::string::npos || key.find("kml") != std::string::npos || key.find("kmz") != std::string::npos){
+								ar_vector_file_path = value;
+							} else if(key.find("camera") != std::string::npos || key.find("config") != std::string::npos){
+								ar_camera_file_path = value;
+							}
+						}
+					}
+					if ((func_mask & FUNCTION_MASK_AR) == FUNCTION_MASK_AR||
+			 (func_mask & FUNCTION_MASK_ENHANCED_AR) == FUNCTION_MASK_ENHANCED_AR) {
+						if (ar_vector_file_path.empty() || ar_camera_file_path.empty()) {
+							throw std::invalid_argument("open ar func,but no camera.config or vector file");
+						}
+					}
+					DispatchCenter::Instance()->updateAllFuncMask(func_mask, ar_camera_file_path, ar_vector_file_path, time_count);
+				}
+				catch (const std::exception& e)
+				{
+					eap_error(e.what());
+					makeJsonDefault(ApiErr::Exception, e.what(), val);
+					return jsonToString(val);
+				}
+				makeJsonDefault(ApiErr::Success, "success", val);
 				return jsonToString(val);
 			});
 

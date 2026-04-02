@@ -43,7 +43,7 @@ namespace eap {
 			static AVPixelFormat _GetHwFormat(AVCodecContext *ctx,
 				const AVPixelFormat *pix_fmts);
 
-		private:
+		public:
 			std::string _url{};
 
 			bool _is_hardware{};

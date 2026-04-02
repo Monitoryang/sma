@@ -60,7 +60,29 @@ namespace eap
 		std::string smaStopProcess(std::string param_str, RpcClientCallback rcp_client_callback = nullptr
 			, std::string from_guid = std::string(), std::string to_take_interface = std::string()
 			, std::string msg_id = std::string(), std::string seq = std::string());
+		std::string smaStopProcess_dji(std::string param_str, RpcClientCallback rcp_client_callback = nullptr
+			, std::string from_guid = std::string(), std::string to_take_interface = std::string()
+			, std::string msg_id = std::string(), std::string seq = std::string());
+		std::string smaStopAllProcess_dji(std::string param_str, RpcClientCallback rcp_client_callback = nullptr
+			, std::string from_guid = std::string(), std::string to_take_interface = std::string()
+			, std::string msg_id = std::string(), std::string seq = std::string());
 		std::string smaUpdateFuncMask(std::string param_str, std::map<std::string, std::string> ar_file
+			, RpcClientCallback rcp_client_callback = nullptr
+			, std::string from_guid = std::string(), std::string to_take_interface = std::string()
+			, std::string msg_id = std::string(), std::string seq = std::string());
+		std::string smaUpdateAllFuncMask(std::string param_str, std::map<std::string, std::string> ar_file
+			, RpcClientCallback rcp_client_callback = nullptr
+			, std::string from_guid = std::string(), std::string to_take_interface = std::string()
+			, std::string msg_id = std::string(), std::string seq = std::string());
+		std::string smaStartProcess_dji(std::string param_str, std::map<std::string, std::string> ar_file,
+			RpcClientCallback rcp_client_callback = nullptr
+			, std::string from_guid = std::string(), std::string to_take_interface = std::string()
+			, std::string msg_id = std::string(), std::string seq = std::string());
+		std::string smaUpdateFuncMask_dji(std::string param_str, std::map<std::string, std::string> ar_file
+			, RpcClientCallback rcp_client_callback = nullptr
+			, std::string from_guid = std::string(), std::string to_take_interface = std::string()
+			, std::string msg_id = std::string(), std::string seq = std::string());
+		std::string smaUpdateAllFuncMask_dji(std::string param_str, std::map<std::string, std::string> ar_file
 			, RpcClientCallback rcp_client_callback = nullptr
 			, std::string from_guid = std::string(), std::string to_take_interface = std::string()
 			, std::string msg_id = std::string(), std::string seq = std::string());

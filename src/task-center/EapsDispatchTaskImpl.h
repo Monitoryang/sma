@@ -513,7 +513,12 @@ namespace eap {
 			float _fire_conf_thresh{0.4};
 			float _smoke_conf_thresh{0.4};
 			std::string prompt{};
-
+			std::atomic<bool> _openset_ai_creating{false};
+			// 在类的私有成员区域添加：
+			// std::vector<joai::Result> _cached_openset_detect_ret;  // OpenSet AI结果缓存
+			// std::mutex _openset_ai_result_mutex;                    // 保护缓存的互斥锁
+			// std::atomic<bool> _openset_ai_result_ready{false};     // 标记是否有有效结果
+			// std::atomic<bool> _openset_ai_running{false}; // 防止并发调用TensorRT
 #endif
 			std::vector<HeatmapData> heatmap_cache;
 			const int cache_limit = 100; // 缓存 100 帧后写入文件

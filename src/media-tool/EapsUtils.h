@@ -25,6 +25,8 @@ namespace eap {
 
 		std::string jsonToString(const Poco::JSON::Object &json);
 
+		std::string sanitizeJsonNaN(const std::string& json);
+
 		bool moveAndRenameFile(std::string src, std::string dst); 
 
 		bool fileExist(const std::string &path);

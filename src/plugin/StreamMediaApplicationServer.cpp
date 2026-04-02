@@ -350,6 +350,11 @@ namespace eap
 				auto ret = smaUpdateFuncMask(StreamMediaApplicationServer::jsonToString(from_data_json)
 					,files, encapsulation_callback_message, from_guid, to_take_interface, msg_id, seq);
 			}
+			else if(to_take_interface == "smaUpdateAllFuncMask"){//更新所有任务的funcmask
+				std::map<std::string, std::string> files;
+				auto ret = smaUpdateAllFuncMask(StreamMediaApplicationServer::jsonToString(from_data_json)
+					,files, encapsulation_callback_message, from_guid, to_take_interface, msg_id, seq);
+			}
 			else if(to_take_interface == "smaClipSnapShotParam"){
 				auto ret = smaClipSnapShotParam(StreamMediaApplicationServer::jsonToString(from_data_json)
 					, encapsulation_callback_message, from_guid, to_take_interface, msg_id, seq);
@@ -511,6 +516,56 @@ namespace eap
 		return "";
 	}
 
+    std::string StreamMediaApplicationServer::smaStopProcess_dji(std::string param_str, RpcClientCallback rcp_client_callback
+		, std::string from_guid, std::string to_take_interface, std::string msg_id, std::string seq)
+	{
+		if (!_impl->_rpc_client) {
+			eap_error("rpc client is null");
+			return "";
+		}
+
+		if (rcp_client_callback) {
+			_impl->_rpc_client->async_call("smaStopProcess_dji", [this, rcp_client_callback, from_guid, to_take_interface, msg_id, seq]
+			(asio_error_codes err_code, string_view data) {
+				if (!err_code) {
+					rcp_client_callback(from_guid, to_take_interface, msg_id, seq, rest_rpc::as<std::string>(data));
+				}
+				else {
+					eap_error_printf("smaStopProcess_dji async call failed, error description: %s", err_code.message());
+				}
+			}, param_str);
+		}
+		else {
+			return _impl->_rpc_client->call<std::string>("smaStopProcess_dji", param_str);
+		}
+		return "";
+	}
+
+    std::string StreamMediaApplicationServer::smaStopAllProcess_dji(std::string param_str, RpcClientCallback rcp_client_callback
+		, std::string from_guid, std::string to_take_interface, std::string msg_id, std::string seq)
+	{
+		if (!_impl->_rpc_client) {
+			eap_error("rpc client is null");
+			return "";
+		}
+
+		if (rcp_client_callback) {
+			_impl->_rpc_client->async_call("smaStopAllProcess_dji", [this, rcp_client_callback, from_guid, to_take_interface, msg_id, seq]
+			(asio_error_codes err_code, string_view data) {
+				if (!err_code) {
+					rcp_client_callback(from_guid, to_take_interface, msg_id, seq, rest_rpc::as<std::string>(data));
+				}
+				else {
+					eap_error_printf("smaStopAllProcess_dji async call failed, error description: %s", err_code.message());
+				}
+			}, param_str);
+		}
+		else {
+			return _impl->_rpc_client->call<std::string>("smaStopAllProcess_dji", param_str);
+		}
+		return "";
+	}
+
 	std::string StreamMediaApplicationServer::smaUpdateFuncMask(std::string param_str
 		, std::map<std::string, std::string> ar_file, RpcClientCallback rcp_client_callback, std::string from_guid
 		, std::string to_take_interface, std::string msg_id, std::string seq)
@@ -533,6 +588,110 @@ namespace eap
 		}
 		else {
 			return _impl->_rpc_client->call<std::string>("smaUpdateFuncMask", param_str, ar_file);
+		}
+		return "";
+	}
+
+	std::string StreamMediaApplicationServer::smaUpdateAllFuncMask(std::string param_str
+		, std::map<std::string, std::string> ar_file, RpcClientCallback rcp_client_callback, std::string from_guid
+		, std::string to_take_interface, std::string msg_id, std::string seq)
+	{
+		if (!_impl->_rpc_client) {
+			eap_error("rpc client is null");
+			return "";
+		}
+
+		if (rcp_client_callback) {
+			_impl->_rpc_client->async_call("smaUpdateAllFuncMask", [this, rcp_client_callback, from_guid, to_take_interface, msg_id, seq]
+			(asio_error_codes err_code, string_view data) {
+				if (!err_code) {
+					rcp_client_callback(from_guid, to_take_interface, msg_id, seq, rest_rpc::as<std::string>(data));
+				}
+				else {
+					eap_error_printf("smaUpdateAllFuncMask async call failed, error description: %s", err_code.message());
+				}
+			}, param_str);
+		}
+		else {
+			return _impl->_rpc_client->call<std::string>("smaUpdateAllFuncMask", param_str, ar_file);
+		}
+		return "";
+	}
+
+	std::string StreamMediaApplicationServer::smaStartProcess_dji(std::string param_str
+		, std::map<std::string, std::string> ar_file, RpcClientCallback rcp_client_callback, std::string from_guid
+		, std::string to_take_interface, std::string msg_id, std::string seq)
+	{
+		if (!_impl->_rpc_client) {
+			eap_error("rpc client is null");
+			return "";
+		}
+
+		if (rcp_client_callback) {
+			_impl->_rpc_client->async_call("smaStartProcess_dji", [this, rcp_client_callback, from_guid, to_take_interface, msg_id, seq]
+			(asio_error_codes err_code, string_view data) {
+				if (!err_code) {
+					rcp_client_callback(from_guid, to_take_interface, msg_id, seq, rest_rpc::as<std::string>(data));
+				}
+				else {
+					eap_error_printf("smaStartProcess_dji async call failed, error description: %s", err_code.message());
+				}
+			}, param_str);
+		}
+		else {
+			return _impl->_rpc_client->call<std::string>("smaStartProcess_dji", param_str, ar_file);
+		}
+		return "";
+	}
+
+	std::string StreamMediaApplicationServer::smaUpdateFuncMask_dji(std::string param_str
+		, std::map<std::string, std::string> ar_file, RpcClientCallback rcp_client_callback, std::string from_guid
+		, std::string to_take_interface, std::string msg_id, std::string seq)
+	{
+		if (!_impl->_rpc_client) {
+			eap_error("rpc client is null");
+			return "";
+		}
+
+		if (rcp_client_callback) {
+			_impl->_rpc_client->async_call("smaUpdateFuncMask_dji", [this, rcp_client_callback, from_guid, to_take_interface, msg_id, seq]
+			(asio_error_codes err_code, string_view data) {
+				if (!err_code) {
+					rcp_client_callback(from_guid, to_take_interface, msg_id, seq, rest_rpc::as<std::string>(data));
+				}
+				else {
+					eap_error_printf("smaUpdateFuncMask_dji async call failed, error description: %s", err_code.message());
+				}
+			}, param_str);
+		}
+		else {
+			return _impl->_rpc_client->call<std::string>("smaUpdateFuncMask_dji", param_str, ar_file);
+		}
+		return "";
+	}
+
+	std::string StreamMediaApplicationServer::smaUpdateAllFuncMask_dji(std::string param_str
+		, std::map<std::string, std::string> ar_file, RpcClientCallback rcp_client_callback, std::string from_guid
+		, std::string to_take_interface, std::string msg_id, std::string seq)
+	{
+		if (!_impl->_rpc_client) {
+			eap_error("rpc client is null");
+			return "";
+		}
+
+		if (rcp_client_callback) {
+			_impl->_rpc_client->async_call("smaUpdateAllFuncMask_dji", [this, rcp_client_callback, from_guid, to_take_interface, msg_id, seq]
+			(asio_error_codes err_code, string_view data) {
+				if (!err_code) {
+					rcp_client_callback(from_guid, to_take_interface, msg_id, seq, rest_rpc::as<std::string>(data));
+				}
+				else {
+					eap_error_printf("smaUpdateAllFuncMask_dji async call failed, error description: %s", err_code.message());
+				}
+			}, param_str);
+		}
+		else {
+			return _impl->_rpc_client->call<std::string>("smaUpdateAllFuncMask_dji", param_str, ar_file);
 		}
 		return "";
 	}
@@ -1646,6 +1805,16 @@ namespace eap
 				}
 
 				msg = this->smaUpdateFuncMask(StreamMediaApplicationServer::jsonToString(dataJs), ar_file);
+			}else if(api == "smaUpdateAllFuncMask"){
+				handleMessageArFile(*dataJs, ar_vector_file, ar_camera_config);
+				if (!ar_vector_file.empty()) {
+					ar_file[ar_vector_form_name] = ar_vector_file;
+				}
+				if (!ar_vector_file.empty()) {
+					ar_file[ar_camera_form_name] = ar_camera_config;
+				}
+
+				msg = this->smaUpdateAllFuncMask(StreamMediaApplicationServer::jsonToString(dataJs), ar_file);
 			}else if(api == "smaClipSnapShotParam"){
 				msg = this->smaClipSnapShotParam(StreamMediaApplicationServer::jsonToString(dataJs));
 			}else if(api == "smaGetMediaList"){
@@ -1967,6 +2136,30 @@ namespace eap
 			response.send() << msg;
 		});
 
+		_webapi->apiRegist("/index/api/sma/smaStopProcess_dji", [handleRequestBody, this](API_ARGS_DEFAULT) {
+			std::string msg{};
+			std::string param_str{};
+
+			handleRequestBody(request, query_parameters, param_str, msg);
+			msg = sendMqttMsg("smaStopProcess_dji", param_str);
+			if (msg.empty()) {
+				msg = this->smaStopProcess_dji(param_str);
+			}
+			response.send() << msg;
+		});
+
+		_webapi->apiRegist("/index/api/sma/smaStopAllProcess_dji", [handleRequestBody, this](API_ARGS_DEFAULT) {
+			std::string msg{};
+			std::string param_str{};
+
+			handleRequestBody(request, query_parameters, param_str, msg);
+			msg = sendMqttMsg("smaStopAllProcess_dji", param_str);
+			if (msg.empty()) {
+				msg = this->smaStopAllProcess_dji(param_str);
+			}
+			response.send() << msg;
+		});
+
 		_webapi->apiRegist("/index/api/sma/smaUpdateFuncMask", [handleRequestFormDataAR, this](API_ARGS_DEFAULT) {
 			std::string msg{};
 			std::string param_str{};
@@ -1976,6 +2169,58 @@ namespace eap
 			msg = sendMqttMsg("smaUpdateFuncMask", param_str, ar_file_str);
 			if (msg.empty()) {
 				msg = this->smaUpdateFuncMask(param_str, ar_file_str);
+			}
+			response.send() << msg;
+		});
+
+		_webapi->apiRegist("/index/api/sma/smaUpdateAllFuncMask", [handleRequestFormDataAR, this](API_ARGS_DEFAULT) {
+			std::string msg{};
+			std::string param_str{};
+			std::map<std::string, std::string> ar_file_str{};
+
+			handleRequestFormDataAR(request, param_str, ar_file_str, msg);
+			msg = sendMqttMsg("smaUpdateAllFuncMask", param_str, ar_file_str);
+			if (msg.empty()) {
+				msg = this->smaUpdateAllFuncMask(param_str, ar_file_str);
+			}
+			response.send() << msg;
+		});
+
+		_webapi->apiRegist("/index/api/sma/smaStartProcess_dji", [handleRequestFormDataAR, this](API_ARGS_DEFAULT) {
+			std::string msg{};
+			std::string param_str{};
+			std::map<std::string, std::string> ar_file_str{};
+
+			handleRequestFormDataAR(request, param_str, ar_file_str, msg);
+			msg = sendMqttMsg("smaStartProcess_dji", param_str, ar_file_str);
+			if (msg.empty()) {
+				msg = this->smaStartProcess_dji(param_str, ar_file_str);
+			}
+			response.send() << msg;
+		});
+
+		_webapi->apiRegist("/index/api/sma/smaUpdateFuncMask_dji", [handleRequestFormDataAR, this](API_ARGS_DEFAULT) {
+			std::string msg{};
+			std::string param_str{};
+			std::map<std::string, std::string> ar_file_str{};
+
+			handleRequestFormDataAR(request, param_str, ar_file_str, msg);
+			msg = sendMqttMsg("smaUpdateFuncMask_dji", param_str, ar_file_str);
+			if (msg.empty()) {
+				msg = this->smaUpdateFuncMask_dji(param_str, ar_file_str);
+			}
+			response.send() << msg;
+		});
+
+		_webapi->apiRegist("/index/api/sma/smaUpdateAllFuncMask_dji", [handleRequestFormDataAR, this](API_ARGS_DEFAULT) {
+			std::string msg{};
+			std::string param_str{};
+			std::map<std::string, std::string> ar_file_str{};
+
+			handleRequestFormDataAR(request, param_str, ar_file_str, msg);
+			msg = sendMqttMsg("smaUpdateAllFuncMask_dji", param_str, ar_file_str);
+			if (msg.empty()) {
+				msg = this->smaUpdateAllFuncMask_dji(param_str, ar_file_str);
 			}
 			response.send() << msg;
 		});

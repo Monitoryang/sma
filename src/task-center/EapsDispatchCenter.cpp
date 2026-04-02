@@ -428,15 +428,10 @@ namespace eap {
 
         void DispatchCenter::addTask(DispatchTask::InitParameter init_paramter)
         {
+            
             auto task = findTaskUrl(init_paramter.pull_url, init_paramter.push_url);
             if (task) {
-                deleteTaskFile(init_paramter.id);
-                std::string exception_description = std::string("Task already existed, ")
-                    + std::string("pull url: ") + init_paramter.pull_url
-                    + std::string(", push url: ") + init_paramter.push_url
-                    + std::string(", id: ") + init_paramter.id;
-                eap_information(exception_description);
-                throw std::invalid_argument(exception_description);
+                throw std::invalid_argument("Task already existed");
             }
             eap::ThreadPool::defaultPool().start([this, init_paramter]() {
                 int retry_cnt{ 3 };
@@ -575,7 +570,7 @@ namespace eap {
             });
         }
 
-        bool DispatchCenter::removeTask(std::string id)
+         bool DispatchCenter::removeTask(std::string id)
         {
             if (id.empty()) {
                 return false;
@@ -603,7 +598,6 @@ namespace eap {
                     push_url = it_defalut->second->getPushUrl();
                     removeTaskUrl(pull_url, push_url);
                     deleteTaskFile(id);
-
                     it_defalut->second->stop();
                     _dispatch_task_map_default.erase(it_defalut);
                     eap_information_printf("---remove defalut task successed! id: %s", id);
@@ -665,6 +659,38 @@ namespace eap {
                 task->updateFuncMask(function_mask);
             }
             updateTaskInfo(id, function_mask, ar_camera_config, ar_vector_file);
+        }
+
+        void DispatchCenter::updateAllFuncMask(int function_mask, std::string ar_camera_config, std::string ar_vector_file, int time_count)
+        {
+            std::lock_guard<std::mutex> lock(_task_mutex);
+            for (auto& [id, task] : _dispatch_task_map) {
+                if (!task) continue;
+#ifdef ENABLE_AIRBORNE
+                int old_function_mask = task->getFunctionMask();
+                int new_function_mask = function_mask;
+                if ((old_function_mask & FUNCTION_MASK_AI) == FUNCTION_MASK_AI)
+                    new_function_mask += FUNCTION_MASK_AI;
+                if ((old_function_mask & FUNCTION_MASK_VIDEO_RECORD) == FUNCTION_MASK_VIDEO_RECORD)
+                    new_function_mask += FUNCTION_MASK_VIDEO_RECORD;
+                eap_information_printf("updateAllFuncMask task id: %s, func_mask: %d, time_count: %d", id, new_function_mask, time_count);
+                task->clipSnapShotParam(time_count);
+                if (!ar_camera_config.empty() || !ar_vector_file.empty()) {
+                    task->updateFuncMask(new_function_mask, ar_camera_config, ar_vector_file);
+                } else {
+                    task->updateFuncMask(new_function_mask);
+                }
+                updateTaskInfo(id, new_function_mask, ar_camera_config, ar_vector_file);
+#else
+                eap_information_printf("updateAllFuncMask task id: %s, func_mask: %d, time_count: %d", id, function_mask, time_count);
+                if (!ar_camera_config.empty() || !ar_vector_file.empty()) {
+                    task->updateFuncMask(function_mask, ar_camera_config, ar_vector_file);
+                } else {
+                    task->updateFuncMask(function_mask);
+                }
+                updateTaskInfo(id, function_mask, ar_camera_config, ar_vector_file);
+#endif
+            }
         }
         
         void DispatchCenter::clipSnapShotParam(std::string id, int time_count)

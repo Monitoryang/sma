@@ -160,6 +160,17 @@ namespace eap {
 
 		}
 
+		namespace MQTT {
+            extern const std::string kEnable;
+            extern const std::string kBrokerHost;
+            extern const std::string kBrokerPort;
+            extern const std::string kClientId;
+            extern const std::string kUsername;
+            extern const std::string kPassword;
+            extern const std::string kSubscribeTopic;
+            extern const std::string kKeepAlive;
+        }
+
 		namespace AR {
 			//不需要AR的配置文件，默认启动的流不开启功能，另外开启的流要启动AR功能都要传camera和vector文件；单独针对某个任务开启AR功能时也要传camera和vector文件
 			//这样每个任务都可以有自己的camera和vector文件

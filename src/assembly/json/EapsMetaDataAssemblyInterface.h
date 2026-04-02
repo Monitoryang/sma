@@ -26,8 +26,12 @@ namespace eap {
 				, ArInfosInternal ar_infos) = 0;
 #endif
 			virtual	void updateAiHeapmapData(AiHeatmapInfo ai_heatmap_infos) = 0;
+			virtual void updateAiDetectInfo(const AiInfos& ai_infos) = 0;
+			/** 设置视频图像尺寸，供 AI 像素坐标转地理坐标使用 */
+			virtual void updateVideoSize(int /*width*/, int /*height*/) {}
 			virtual void updateFrameCurrentTime(int64_t current_time) = 0;
 			virtual void updateVideoParams(int64_t video_duration, int bit_rate=50000, int frame_rate=30) = 0;
+			virtual void updateVideoParams2(int64_t video_duration, int bit_rate=50000, int frame_rate=30, int width = 1920, int height = 1080) = 0;
 
 			virtual std::string getAssemblyString() = 0;
 

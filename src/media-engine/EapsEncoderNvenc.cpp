@@ -149,6 +149,14 @@ namespace eap {
 							packet_export.setMetaDataBasic(&min_pts_meta_data.meta_data_basic);
 							packet_export.setSeiBuf(min_pts_meta_data.meta_data_raw_binary);
 							packet_export.metaDataValid() = min_pts_meta_data.meta_data_valid;
+						// 	{
+                        //     uint32_t detc_size = min_pts_meta_data.meta_data_basic.GimbalPayloadInfos_p.ImageProcessingBoardInfo_p.AiInfos_p.AIDataDetcSize;
+                        //     uint32_t ai_status = min_pts_meta_data.meta_data_basic.GimbalPayloadInfos_p.ImageProcessingBoardInfo_p.AiInfos_p.AiStatus;
+                        //     if (ai_status == 1 && detc_size > 0) {
+                        //         eap_information_printf("[OPENSET-STEP4] encode thread -> Packet, metaDataValid: %d, AiStatus: %d, DetcSize: %d",
+                        //             (int)min_pts_meta_data.meta_data_valid, (int)ai_status, (int)detc_size);
+                        //     }
+                        // }
 							packet_export.setArMarkInfos(min_pts_meta_data.ar_mark_info);
 #if defined(ENABLE_GPU) ||  defined(ENABLE_AI) ||  defined(ENABLE_AR)
 							packet_export.setArPixelPoints(min_pts_meta_data.pixel_points);
@@ -253,6 +261,14 @@ namespace eap {
 			vas_frame_hw.setMetaDataBasic(frame.meta_data.meta_data_basic);
 			vas_frame_hw.setSeiBuf(frame.meta_data.meta_data_raw_binary);
 			vas_frame_hw.setMetaDataValid(frame.meta_data.meta_data_valid);
+		// 	{
+        //     uint32_t detc_size = frame.meta_data.meta_data_basic.GimbalPayloadInfos_p.ImageProcessingBoardInfo_p.AiInfos_p.AIDataDetcSize;
+        //     uint32_t ai_status = frame.meta_data.meta_data_basic.GimbalPayloadInfos_p.ImageProcessingBoardInfo_p.AiInfos_p.AiStatus;
+        //     if (ai_status == 1 && detc_size > 0) {
+        //         eap_information_printf("[OPENSET-STEP3] EncoderNVENC::updateFrame(CodecImage), AiStatus: %d, DetcSize: %d",
+        //             (int)ai_status, (int)detc_size);
+        //     }
+		// }
 #if defined(ENABLE_GPU) ||  defined(ENABLE_AI) ||  defined(ENABLE_AR)
 			vas_frame_hw.setArPixelPoints(frame.meta_data.pixel_points);
 			vas_frame_hw.setArPixelLines(frame.meta_data.pixel_lines);

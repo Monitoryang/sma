@@ -134,6 +134,16 @@ namespace eap {
 					//eap::configInstance().setString(AR::kVectorFile, "default.kml");
 					//eap::configInstance().setString(AR::kSetttingsFile, "default.config");
 					eap::configInstance().setBool(Hook::kEnable, false);
+					eap::configInstance().setBool(MQTT::kEnable, false);
+					// MQTT 默认配置
+					eap::configInstance().setString(MQTT::kBrokerHost, "223.85.99.73");
+					eap::configInstance().setInt(MQTT::kBrokerPort, 1883);
+					eap::configInstance().setString(MQTT::kClientId, "eaps_sma_client");
+					eap::configInstance().setString(MQTT::kUsername, "jouav");
+					eap::configInstance().setString(MQTT::kPassword, "MQ2024@jocloud!@#");
+					eap::configInstance().setString(MQTT::kSubscribeTopic, "thing/product/1581F8HGX252U00A025H/osd");
+					eap::configInstance().setInt(MQTT::kKeepAlive, 60);
+
 					eap::configInstance().setBool(Hook::kOnAddTask, false);
 					eap::configInstance().setInt(Hook::kTimeoutSec, 10);
 					eap::configInstance().setString(Hook::kAdminParams, "secret=035c73f7-bb6b-4889-a715-d9eb2d1925dd");
@@ -399,6 +409,18 @@ namespace eap {
 			// extern const std::string kFireConfThresh = AI_FIELD "fire_conf_thresh";
 			// extern const std::string kSmokeConfThresh = AI_FIELD "smoke_conf_thresh";
 		}
+
+		 namespace MQTT {
+#define MQTT_FIELD "mqtt."
+            const std::string kEnable        = MQTT_FIELD "enable";
+            const std::string kBrokerHost    = MQTT_FIELD "broker_host";
+            const std::string kBrokerPort    = MQTT_FIELD "broker_port";
+            const std::string kClientId      = MQTT_FIELD "client_id";
+            const std::string kUsername      = MQTT_FIELD "username";
+            const std::string kPassword      = MQTT_FIELD "password";
+            const std::string kSubscribeTopic = MQTT_FIELD "subscribe_topic";
+            const std::string kKeepAlive     = MQTT_FIELD "keep_alive";
+        }
 
 		namespace AR {
 //#define AR_FIELD "ar."
