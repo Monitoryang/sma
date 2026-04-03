@@ -38,8 +38,8 @@ namespace eap
 				_mqtt_client = EapsMqttClient::createInstance();
 				_mqtt_client->start(broker_host, broker_port, client_id,
 									username, password, topic, keep_alive);
-				eap_information_printf("[MQTT] client initialized, broker=%s:%d topic=%s",
-									broker_host, broker_port, topic);
+				eap_information_printf("[MQTT] initMqttClient success, broker=%s:%d client_id=%s topic=%s",
+									broker_host, broker_port, client_id, topic);
 			} 
 			catch (const std::exception& e) 
 			{

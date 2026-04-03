@@ -356,6 +356,8 @@ namespace eap {
 #ifdef ENABLE_GPU
 			EncoderNVENCPtr _encoder{};
 			std::mutex _encoder_mutex{};
+			Decoder::FrameCallback _decoder_frame_callback{};
+        	std::mutex _decoder_mutex{};
 			#ifdef ENABLE_STABLIZE
 			std::shared_ptr<stablizer> _stablizer{};
 			#endif

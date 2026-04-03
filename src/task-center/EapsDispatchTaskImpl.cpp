@@ -259,7 +259,7 @@ namespace eap {
 							packet_export.setAiHeatmapInfos(packet.getAiHeatmapInfos());
 							packet_export.setArValidPointIndex(packet.getArValidPointIndex());
 							packet_export.setArVectorFile(packet.getArVectorFile());
-							packet_export.setVideoParams(_framerate.num, _bit_rate);
+							packet_export.setVideoParams(_framerate.num, _bit_rate, _codec_parameter.width, _codec_parameter.height);
 							// 录像
 #ifdef ENABLE_AIRBORNE
 				if(_enable_encode)
@@ -523,6 +523,25 @@ namespace eap {
 								eap_information_printf("reopen demuxer failed, id: %s", task_id);
 								NoticeCenter::Instance()->getCenter().postNotification(
 									new TaskStopedNotice(std::string(task_id), desc, pilot_sn));
+							} else {
+#ifdef ENABLE_GPU
+								// demuxer重连成功后，旧的CUDA解码器句柄已失效，必须销毁并重建decoder
+								{
+									std::lock_guard<std::mutex> lock(_decoder_mutex);
+									if (_decoder) {
+										_decoder->close();
+										_decoder.reset();
+									}
+								}
+								if (_decoder_frame_callback) {
+									try {
+										createDecoder(_decoder_frame_callback);
+										eap_information_printf("reopen decoder success after demuxer reconnect, id: %s", task_id);
+									} catch (const std::exception& e) {
+										eap_error_printf("reopen decoder failed after demuxer reconnect, id: %s, err: %s", task_id, std::string(e.what()));
+									}
+								}
+#endif
 							}
 						}else {
 							eap_information_printf("demuxer stoped, start remove task id: %s", task_id);
@@ -800,11 +819,13 @@ namespace eap {
 #ifndef ENABLE_AIRBORNE
 			if (!_is_demuxer_closed){
 				eap_information_printf("create decoder, task id: %s", _id);
+				_decoder_frame_callback = decoder_frame_callback;
 				createDecoder(decoder_frame_callback);// 默认创建decoder
 			}
 #else
 			if (_init_parameter.need_decode) {
 				eap_information_printf("create decoder, task id: %s", _id);
+				_decoder_frame_callback = decoder_frame_callback;
 				createDecoder(decoder_frame_callback);// 默认创建decoder
 			}
 #endif
@@ -5504,6 +5525,15 @@ namespace eap {
 						}
 
 						Poco::JSON::Array json_warning_info_array;
+						// 无元数据时，在循环外一次性实时计算地理坐标
+						std::vector<std::tuple<double, double, double>> direct_geo_locs;
+						if (!image->meta_data.meta_data_valid || !_engines->_ar_engine) {
+							std::lock_guard<std::mutex> pusher_lock(_pushers_mutex);
+							if (_pusher && _pusher->_pusher) {
+								direct_geo_locs = _pusher->_pusher->calcAiGeoLocations(
+									ai_detect_ret, image->width, image->height);
+							}
+						}
 						for (std::size_t i = 0; i < ai_detect_ret.size(); ++i) {
 							Poco::JSON::Object elementJs;
 							Poco::JSON::Array pixelPositionArr;
@@ -5515,7 +5545,7 @@ namespace eap {
 							pixelPositionArr.add(object.Bounding_box.width);
 							pixelPositionArr.add(object.Bounding_box.height);
 							elementJs.set("pixelPosition", pixelPositionArr);
-							// wargetPosition：有元数据且 AR 引擎有效时用 AR 引擎结果，否则用载体位置作为 fallback
+							// wargetPosition：有元数据且 AR 引擎有效时用 AR 引擎结果，否则用 calcAiGeoLocations 实时计算
 							Poco::JSON::Array wargetPositionArr;
 							if (image->meta_data.meta_data_valid
 								&& _engines->_ar_engine
@@ -5532,16 +5562,20 @@ namespace eap {
 									warning_info[i].target_position.latitude,
 									warning_info[i].target_position.altitude);
 							} else {
-								// 无元数据：使用载体位置作为 fallback
-								JoFmvMetaDataBasic meta_temp = image->meta_data.meta_data_basic;
-								double fallback_lon = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleLon * 1e-7;
-								double fallback_lat = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleLat * 1e-7;
-								double fallback_alt = meta_temp.CarrierVehiclePosInfo_p.CarrierVehicleHMSL * 1e-2;
-								wargetPositionArr.add(fallback_lon);
-								wargetPositionArr.add(fallback_lat);
-								wargetPositionArr.add(fallback_alt);
-								eap_warning_printf("[DJI-GEO] no valid AR geo, fallback to vehicle pos: lon=%.8f lat=%.8f alt=%.2f",
-									fallback_lon, fallback_lat, fallback_alt);
+								if (i < direct_geo_locs.size()) {
+									auto [d_lon, d_lat, d_alt] = direct_geo_locs[i];
+									if (!std::isnan(d_lon) && !std::isnan(d_lat) && d_lon != 0 && d_lat != 0) {
+										wargetPositionArr.add(d_lon);
+										wargetPositionArr.add(d_lat);
+										wargetPositionArr.add(d_alt);
+										eap_information_printf("[DJI-GEO] calcAiGeoLocations: lon=%.8f lat=%.8f alt=%.2f",
+											d_lon, d_lat, d_alt);
+									} else {
+										eap_warning_printf("%s", "[DJI-GEO] geo invalid (nan/zero), skip wargetPosition");
+									}
+								} else {
+									eap_warning_printf("%s", "[DJI-GEO] no geo data, skip wargetPosition");
+								}
 							}
 							elementJs.set("wargetPosition", wargetPositionArr);
 							json_warning_info_array.add(elementJs);
@@ -6393,6 +6427,7 @@ namespace eap {
 			_is_hardware_decode = true;
 #endif
 			try {
+				std::lock_guard<std::mutex> lock(_decoder_mutex);
 				if (!_decoder) {
 					_decoder = Decoder::createInstance();
 					_decoder->setFrameCallback(frame_callback);
